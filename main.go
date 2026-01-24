@@ -1,0 +1,93 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"paymentmc/cmd/app/handler"
+	"paymentmc/cmd/app/repository"
+	"paymentmc/cmd/app/resource"
+	"paymentmc/cmd/app/service"
+	"paymentmc/cmd/app/storage"
+	"paymentmc/cmd/app/usecase"
+	"paymentmc/config"
+	"syscall"
+	"time"
+
+	paymentGrpc "paymentmc/grpc/order"
+
+	"paymentmc/infrastructure/log"
+	"paymentmc/routes"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	fmt.Println("Service Payment")
+
+	cfg := config.LoadConfig()
+	fmt.Println("Config semua disni")
+	fmt.Println("APP CONFIG:", cfg.App)
+	fmt.Println("DATABASE CONFIG:", cfg.Database)
+	fmt.Println("PATH UPLOADS:", cfg.Storage)
+	fmt.Println("GRPC Config: ", cfg.GRPC)
+	fmt.Println("KAFKA Config: ", cfg.Kafka)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	db := resource.InitDB(&cfg)
+
+	log.SetupLogger()
+
+	paymentRepostory := repository.NewPaymentRepository(db)
+
+	orderGRPC := paymentGrpc.NewOrderClient(cfg.GRPC.OrderURL)
+
+	paymentService := service.NewPaymentService(*paymentRepostory, orderGRPC)
+	paymentStorage := storage.NewStorage(cfg.Storage.UploadBaseDir, cfg.App.Url)
+	paymentUsecase := usecase.NewPaymentUsecase(
+		*paymentService,
+		*paymentStorage,
+	)
+
+	//  Jalankan Worker set status order code yang expired
+	paymentUsecase.StartBrokerExpiredPaymentAndOrder(ctx)
+
+	paymentHandler := handler.NewPaymentHandler(*paymentUsecase)
+
+	router := gin.Default()
+	router.Static("/static", "./uploads")
+	routes.SetupRoutes(router, *paymentHandler)
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.App.Port,
+		Handler: router,
+	}
+
+	go func() {
+		log.Logger.Infof("Server jalan di port : %s", cfg.App.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Logger.Fatalf("Gagal menjalankan server: %s\n", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Logger.Info("Menerima sinyal berhenti, mematikan server...")
+
+	cancel()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Logger.Fatal("Server dipaksa berhenti: ", err)
+	}
+
+	log.Logger.Info("Server keluar dengan aman (Graceful Shutdown Berhasil).")
+}

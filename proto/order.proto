@@ -1,0 +1,150 @@
+syntax = "proto3";
+
+package order;
+
+option go_package = "proto/orderpb;orderpb";
+
+service OrderService {
+   rpc GetOrderDetailByID (GetOrderDetailByIDRequest)
+      returns (GetOrderDetailByIDResponse);
+
+  rpc GetOrderDetailByCode (GetOrderDetailByCodeRequest)
+      returns (GetOrderDetailResponse);
+    
+   rpc UpdateOrderStatus (UpdateOrderStatusRequest)
+      returns (UpdateOrderStatusResponse);
+
+   rpc BulkUpdateOrderStatus (BulkUpdateOrderStatusRequest)
+      returns (BulkUpdateOrderStatusResponse);
+      
+}
+
+/* =======================
+   REQUEST
+======================= */
+
+message GetOrderDetailByIDRequest{
+  int64 order_id = 1;
+}
+
+message GetOrderDetailByCodeRequest {
+  string order_code = 1;
+}
+
+message UpdateOrderStatusRequest {
+  string order_code = 1;
+  OrderStatus status = 2;
+}
+
+message BulkUpdateOrderStatusRequest {
+  repeated int64 order_ids = 1; 
+  OrderStatus status = 2;
+}
+
+
+
+
+/* =======================
+   RESPONSE
+======================= */
+
+message GetOrderDetailByIDResponse {
+  int64 id = 1;
+  int64 user_id = 2;
+  int64 service_id = 3;
+
+  string service_name_snapshot = 4;
+  int64 base_price_snapshot = 5;
+  int64 total_price_snapshot = 6;
+
+  string user_note = 7;
+  OrderStatus status = 8;
+  int32 quantity = 9;
+
+  User user = 10;
+  OrderCode order_code = 11;
+
+  repeated OrderSpecification order_specifications = 12;
+  OrderFile order_file = 13;
+}
+
+message GetOrderDetailResponse {
+  int64 id = 1;
+  int64 user_id = 2;
+  int64 service_id = 3;
+
+  string service_name_snapshot = 4;
+  int64 base_price_snapshot = 5;
+  int64 total_price_snapshot = 6;
+
+  string user_note = 7;
+  OrderStatus status = 8;
+  int32 quantity = 9;
+
+  User user = 10;
+  OrderCode order_code = 11;
+
+  repeated OrderSpecification order_specifications = 12;
+  OrderFile order_file = 13;
+}
+
+message UpdateOrderStatusResponse {
+  bool success = 1;
+}
+
+message BulkUpdateOrderStatusResponse {
+  bool success = 1;
+  int64 total_updated = 2;
+}
+
+/* =======================
+   ENUM
+======================= */
+
+enum OrderStatus {
+  Unspesified = 0;
+  Created = 1;
+  Waiting_payment = 2;
+  Paid = 3;
+  Expired = 4;
+  On_progress = 5;
+  Finished = 6;
+  Completed = 7;
+  Cancelled = 8;
+}
+
+/* =======================
+   NESTED MESSAGES
+======================= */
+
+message User {
+  int64 id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  string avatar_url = 5;
+}
+
+message OrderCode {
+  int64 id = 1;
+  int64 order_id = 2;
+  string code = 3;
+}
+
+message OrderSpecification {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 specification_id = 3;
+
+  string specification_name_snapshot = 4;
+  string value_snapshot = 5;
+  int64 additional_price_snapshot = 6;
+}
+
+message OrderFile {
+  int64 id = 1;
+  int64 order_id = 2;
+  string file_url = 3;
+  string type = 4;
+  string file_type = 5;
+}
