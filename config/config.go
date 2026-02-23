@@ -34,6 +34,8 @@ func LoadConfig() Config {
 	cfg.Kafka.Broker = viper.GetString("kafka.broker")
 	cfg.Kafka.KafkaTopics = viper.GetStringMapString("kafka.topics")
 
+	cfg.Secret.JWTSecret = viper.GetString("secret.jwt_secret")
+
 	return cfg
 
 }

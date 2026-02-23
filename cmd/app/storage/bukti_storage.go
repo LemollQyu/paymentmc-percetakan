@@ -1,7 +1,11 @@
 package storage
 
-import "paymentmc/models"
+import (
+	"context"
+	"mime/multipart"
+)
 
-func (s *Storage) UploadBuktiPembayaran() (*models.ResponseUploadBuktiPembayaran, error) {
-	return nil, nil
+func (s *Storage) UploadProofPayment(ctx context.Context, file *multipart.FileHeader) (string, error) {
+	const maxIconSize = 3000 * 1024
+	return s.UploadFile(ctx, file, "bukti", []string{".jpeg", ".png", ".webp", "jpg"}, maxIconSize)
 }

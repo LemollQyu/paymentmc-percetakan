@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "proto/paymentpb;paymentpb";
+
+service PaymentService {
+  rpc DeletePaymentByOrderID (RequestDeletePaymentByOrderID)
+      returns (ResponseDeletePaymentByOrderID);
+}
+
+/* =======================
+   REQUEST
+======================= */
+
+message RequestDeletePaymentByOrderID {
+  int64 order_id = 1;
+}
+
+/* =======================
+   RESPONSE
+======================= */
+
+message ResponseDeletePaymentByOrderID {
+  bool success = 1;
+  string message = 2; 
+}

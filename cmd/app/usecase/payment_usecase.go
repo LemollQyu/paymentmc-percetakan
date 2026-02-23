@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"mime/multipart"
 	"paymentmc/infrastructure/log"
 	"paymentmc/models"
 	"paymentmc/utils"
@@ -92,6 +93,30 @@ func (uc *PaymentUsecase) Checkout(ctx context.Context, code string, param model
 	dataPaymentMethod, err := uc.PaymentService.GetPaymentMethod(ctx, param.PaymentMethod)
 	if err != nil {
 		log.Logger.Error("uc.PaymentSerivce.GetPaymentMethod")
+		return nil, err
+	}
+
+	// create list_payment_waiting
+	reqListWaitingPayment := &models.ListWaitingPayment{
+		PaymentID:         dataPaymentCode.PaymentID,
+		OrderID:           resOrder.ID,
+		UserID:            resOrder.UserID,
+		Amount:            param.Amount,
+		OrderCode:         dataPaymentCode.Code,
+		IconMethodPayment: dataPaymentMethod.UrlIcon,
+		NumberPayment:     dataPaymentMethod.NumberPayment,
+		CodeQris:          dataPaymentMethod.UrlCode,
+		CheckoutAt:        time.Now(),
+		ExpiredAt:         dataPaymentCode.ExpiredAt,
+		CreatedAt:         time.Now(),
+	}
+
+	_, err = uc.PaymentService.InsertListWaitingPayment(ctx, reqListWaitingPayment)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"param": reqListWaitingPayment,
+			"error": err.Error(),
+		}).Error("InsertListWaitingPayment")
 		return nil, err
 	}
 
@@ -300,22 +325,298 @@ func (uc *PaymentUsecase) CancelledPaymentAndOrder(ctx context.Context, code str
 }
 
 // uc bayar ordernya
-func (uc *PaymentUsecase) ProofPayment(ctx context.Context, code string) error {
+func (uc *PaymentUsecase) ProofPayment(ctx context.Context, code string, fileProof *multipart.FileHeader, note string) (*models.ResponseUploadBuktiPembayaran, error) {
 	// ambil data payment
+
+	dataPaymentCode, err := uc.PaymentService.GetFullPaymentCodeByCode(ctx, code)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"payment_code": code,
+			"error":        err.Error(),
+		}).Error("uc.PaymentService.GetFullPaymentCodeByCode")
+		return nil, err
+	}
 
 	// validasi payment ada
 
+	if dataPaymentCode == nil {
+		return nil, utils.ErrPaymentCodeNotFound
+	}
+
 	// validasi payment status harus Pending dan belum expired
+	if dataPaymentCode.Payment.Status != utils.StatusPaymentPending {
+		log.Logger.WithFields(logrus.Fields{
+			"status_payment": dataPaymentCode.Payment.Status,
+		}).Info("uc.PaymentService.GetFullPaymentCodeByCode")
+		return nil, utils.ErrStatusPaymentShouldPending
+	}
+
+	// ambil data order
+	dataOrder, err := uc.PaymentService.GetOrderByID(ctx, dataPaymentCode.Payment.OrderID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_id": dataPaymentCode.Payment.OrderID,
+			"error":    err.Error(),
+		}).Error("uc.PaymentService.GetOrderByID")
+
+		return nil, err
+	}
+
+	// validasi order harus Waiting_payment
+	if dataOrder.Status != utils.StatusOrderWaitingPayment {
+		return nil, utils.ErrStatusOrderShouldWaitingPayment
+	}
+
+	// kirim bukti pembyaran ke storage
+	url, err := uc.StorageService.UploadProofPayment(ctx, fileProof)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"file":  fileProof,
+			"error": err.Error(),
+		}).Error("uc.PaymentService.GetOrderByID")
+		return nil, err
+	}
+
+	reqProof := models.RequestBuktiPembayaran{
+		PaymentID: dataPaymentCode.Payment.ID,
+		Note:      note,
+		ProofURL:  url,
+	}
+
+	// panggil service simpan ke db
+	uploadAt, err := uc.PaymentService.PaymentProof(ctx, reqProof)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"url":   url,
+			"param": reqProof,
+			"error": err.Error(),
+		}).Error("uc.PaymentService.CreatePaymentProof")
+		return nil, err
+	}
+
+	// cek paymet sudah paid atau belum
+	if dataPaymentCode.Payment.PaidAt != nil {
+		return nil, utils.ErrPaymentPaid
+	}
+
+	// set payment di paid at nya dan status nya paid
+	err = uc.PaymentService.UpdatedPaidAt(ctx, dataPaymentCode.PaymentID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"error": err.Error(),
+		}).Error("uc.PaymentService.UpdatedPaidAt")
+		return nil, err
+	}
+
+	if dataOrder.Status != utils.StatusOrderWaitingPayment {
+		return nil, utils.ErrStatusOrderShouldWaitingPayment
+	}
+
+	// set status order paid
+	_, err = uc.PaymentService.SetStatusOrder(ctx, dataOrder.OrderCode.Code, utils.StatusOrderPaid)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_code": dataOrder.OrderCode.Code,
+			"new_status": utils.StatusOrderPaid,
+			"error":      err.Error(),
+		}).Error("uc.PaymentService.SetStatusOrder")
+
+		return nil, err
+	}
+
+	return uploadAt, nil
+
+}
+
+func (uc *PaymentUsecase) GetPayments(
+	ctx context.Context,
+	status string,
+	page int,
+	limit int,
+) ([]*models.Payment, error) {
+
+	// default
+	if page <= 0 {
+		page = 1
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
+	data, err := uc.PaymentService.GetPayments(
+		ctx,
+		status,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (uc *PaymentUsecase) ApprovePayment(ctx context.Context, codePayment string) error {
+	// ambil data payment
+	dataPaymentCode, err := uc.PaymentService.GetFullPaymentCodeByCode(ctx, codePayment)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"payment_code": codePayment,
+			"error":        err.Error(),
+		}).Error("uc.PaymentService.GetFullPaymentCodeByCode")
+		return err
+	}
+
+	// validasi payment ada
+
+	if dataPaymentCode == nil {
+		return utils.ErrPaymentCodeNotFound
+	}
+
+	// validasi status payment sudah success
+	if dataPaymentCode.Payment.Status != utils.StatusPaymentSuccess {
+		return utils.ErrPaymentShouldSuccess
+	}
 
 	// ambil data order
 
-	// validasi order harus Waiting_payment
+	dataOrder, err := uc.PaymentService.GetOrderByID(ctx, dataPaymentCode.Payment.OrderID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_id": dataPaymentCode.Payment.OrderID,
+			"error":    err.Error(),
+		}).Error("uc.PaymentService.GetOrderByID")
 
-	// kirim bukti pembyaran ke storage
-	// ambil data url
+		return err
+	}
 
-	// panggil service simpan ke db
+	// cek ada tidak
+	if dataOrder == nil {
+		return utils.OrderNotFound
+	}
+
+	// cek status order
+
+	if dataOrder.Status != utils.StatusOrderPaid {
+		return utils.ErrOrderShouldPaid
+	}
+
+	// set approve payment
+	err = uc.PaymentService.UpdateApproved(ctx, dataPaymentCode.Payment.ID)
+	if err != nil {
+		log.Logger.Error("uc.PaymentService.UpdateApproved")
+		return err
+	}
+
+	// set status order on_progress
+	_, err = uc.PaymentService.SetStatusOrder(ctx, dataOrder.OrderCode.Code, utils.StatusOrderOnProgress)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_code": dataOrder.OrderCode.Code,
+			"new_status": utils.StatusOrderOnProgress,
+			"error":      err.Error(),
+		}).Error("uc.PaymentService.SetStatusOrder")
+
+		return err
+	}
 
 	return nil
+}
 
+func (uc *PaymentUsecase) RejectPayment(ctx context.Context, codePayment string) error {
+	// ambil data payment
+	dataPaymentCode, err := uc.PaymentService.GetFullPaymentCodeByCode(ctx, codePayment)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"payment_code": codePayment,
+			"error":        err.Error(),
+		}).Error("uc.PaymentService.GetFullPaymentCodeByCode")
+		return err
+	}
+
+	// validasi payment ada
+
+	if dataPaymentCode == nil {
+		return utils.ErrPaymentCodeNotFound
+	}
+
+	// validasi status payment sudah success
+	if dataPaymentCode.Payment.Status != utils.StatusPaymentSuccess {
+		return utils.ErrPaymentShouldSuccess
+	}
+
+	// ambil data order
+
+	dataOrder, err := uc.PaymentService.GetOrderByID(ctx, dataPaymentCode.Payment.OrderID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_id": dataPaymentCode.Payment.OrderID,
+			"error":    err.Error(),
+		}).Error("uc.PaymentService.GetOrderByID")
+
+		return err
+	}
+
+	// cek ada tidak
+	if dataOrder == nil {
+		return utils.OrderNotFound
+	}
+
+	// cek status order
+
+	if dataOrder.Status != utils.StatusOrderPaid {
+		return utils.ErrOrderShouldPaid
+	}
+
+	// set reject/cancelled payment
+	err = uc.PaymentService.UpdateRejected(ctx, dataPaymentCode.Payment.ID) //cancelled
+	if err != nil {
+		log.Logger.Error("uc.PaymentService.UpdateRejected")
+		return err
+	}
+
+	// set status order on_progress
+	_, err = uc.PaymentService.SetStatusOrder(ctx, dataOrder.OrderCode.Code, utils.StatusOrderCancelled)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_code": dataOrder.OrderCode.Code,
+			"new_status": utils.StatusOrderCancelled,
+			"error":      err.Error(),
+		}).Error("uc.PaymentService.SetStatusOrder")
+
+		return err
+	}
+
+	return nil
+}
+
+func (uc *PaymentUsecase) GetPaymentByOrderID(ctx context.Context, orderID int64) (*models.Payment, error) {
+
+	data, err := uc.PaymentService.GetPaymentByOrderID(ctx, orderID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_id": orderID,
+			"error":    err.Error(),
+		}).Error("uc.PaymentService.GetPaymentByOrderID")
+		return nil, err
+	}
+
+	return data, nil
+
+}
+
+func (uc *PaymentUsecase) DeletePaymentByOrderID(ctx context.Context, orderID int64) error {
+	err := uc.PaymentService.DeletePaymentByOrderID(ctx, orderID)
+	if err != nil {
+		log.Logger.WithFields(logrus.Fields{
+			"order_id": orderID,
+			"error":    err.Error(),
+		}).Error("uc.PaymentService.GetPaymentByOrderID")
+		return err
+	}
+
+	return nil
 }

@@ -10,7 +10,12 @@ var (
 	ErrStatusNotCompatible        = errors.New("status tidak diperbolehkan")
 	ErrStatusNotCreated           = errors.New("status order harus created")
 	ErrPaymentCodeNotFound        = errors.New("payment code tidak ditemukan")
-	ErrStatusPaymentShouldPending = errors.New("payment status harus pending")
+	ErrStatusPaymentShouldPending = errors.New("payment status harus pending atau sudah expired")
+	ErrPaymentPaid                = errors.New("payment sudah dibayar")
+	ErrPaymentShouldSuccess       = errors.New("payment status harus success")
+	ErrOrderShouldPaid            = errors.New("order status harus paid")
+	ErrPaymentNotFound            = errors.New("payment tidak ditemukan")
+	ErrNotDeletePayment           = errors.New("payment tidak bisa dihapus")
 
 	ErrStatusOrderShouldWaitingPayment = errors.New("order status harus waiting_payment")
 )

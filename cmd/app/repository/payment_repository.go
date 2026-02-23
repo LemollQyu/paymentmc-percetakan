@@ -54,6 +54,34 @@ func (r *PaymentRepository) GetPaymentByID(ctx context.Context, id int64) (*mode
 	return &payment, nil
 }
 
+// get payment by orderid
+func (r *PaymentRepository) GetPaymentByOrderID(ctx context.Context, orderID int64) (*models.Payment, error) {
+	var payment models.Payment
+	err := r.Database.WithContext(ctx).
+		Where("order_id = ?", orderID).
+		First(&payment).
+		Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
+}
+
+// delete payment by order id
+func (r *PaymentRepository) DeletePaymentByOrderID(ctx context.Context, orderID int64) error {
+
+	return r.Database.WithContext(ctx).
+		Where("order_id = ?", orderID).
+		Delete(&models.Payment{}).
+		Error
+}
+
 // payment code yang sudah expired, dan status Payment Pending dan ambil datanya
 func (r *PaymentRepository) GetExpiredPendingPaymentIDs(
 	ctx context.Context,
@@ -140,4 +168,101 @@ func (r *PaymentRepository) UpdatePayment(
 			"status":     newStatus,
 			"updated_at": time.Now(),
 		}).Error
+}
+
+// repo update approved at payment
+
+func (r *PaymentRepository) UpdateApproved(ctx context.Context, paymentID int64) error {
+	return r.Database.
+		WithContext(ctx).
+		Table(tables.Payments).
+		Where("id = ?", paymentID).
+		Updates(map[string]interface{}{
+			"approved_at": time.Now(),
+			"updated_at":  time.Now(),
+		}).Error
+}
+
+// repo update rejected at payment
+
+func (r *PaymentRepository) UpdateRejected(ctx context.Context, paymentID int64) error {
+	return r.Database.
+		WithContext(ctx).
+		Table(tables.Payments).
+		Where("id = ?", paymentID).
+		Updates(map[string]interface{}{
+			"status":     utils.StatusPaymentCancelled,
+			"updated_at": time.Now(),
+		}).Error
+}
+
+// create bukti pembayaran
+
+func (r *PaymentRepository) CreateProofPayment(
+	ctx context.Context,
+	param models.RequestBuktiPembayaran,
+) (*models.ResponseUploadBuktiPembayaran, error) {
+
+	paymentProof := &models.BuktiPembayaran{
+		PaymentID: param.PaymentID,
+		ProofURL:  param.ProofURL,
+		Note:      param.Note,
+	}
+
+	err := r.Database.WithContext(ctx).
+		Table(tables.PaymentProofs).
+		Create(paymentProof).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.ResponseUploadBuktiPembayaran{
+		UploadAt: paymentProof.UploadedAt,
+	}, nil
+
+}
+
+// repo update paid payment
+func (r *PaymentRepository) UpdatedPaidAt(ctx context.Context, paymentID int64) error {
+	return r.Database.
+		WithContext(ctx).
+		Table(tables.Payments).
+		Where("id = ?", paymentID).
+		Updates(map[string]interface{}{
+			"status":     utils.StatusPaymentSuccess,
+			"paid_at":    time.Now(),
+			"updated_at": time.Now(),
+		}).Error
+}
+
+// repo get all payments
+func (r *PaymentRepository) GetPayments(
+	ctx context.Context,
+	status string,
+	limit int,
+	offset int,
+) ([]*models.Payment, error) {
+
+	var payments []*models.Payment
+
+	db := r.Database.WithContext(ctx).
+		Table(tables.Payments).
+		Preload("PaymentCodes")
+
+	// filter status jika ada
+	if status != "" {
+		db = db.Where("payments.status = ?", status)
+	}
+
+	err := db.
+		Order("payments.created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&payments).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return payments, nil
 }

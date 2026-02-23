@@ -9,6 +9,7 @@ import (
 
 const (
 	StatusOrderWaitingPayment = "Waiting_payment"
+	StatusOrderOnProgress     = "On_progress"
 	StatusOrderExpired        = "Expired"
 	StatusOrderCancelled      = "Cancelled"
 	StatusOrderPaid           = "Paid"

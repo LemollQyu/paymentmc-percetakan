@@ -6,6 +6,11 @@ type Config struct {
 	Storage  StorageConfig  `yaml:"storage" validate:"required"`
 	GRPC     GRPCConfig     `yaml:"grpc" validate:"required"`
 	Kafka    KafkaConfig    `yaml:"kafka" validate:"required"`
+	Secret   SecretConfig   `yaml:"secret" validate:"required"`
+}
+
+type SecretConfig struct {
+	JWTSecret string `yaml:"jwt_secret" validate:"required"`
 }
 
 type AppConfig struct {

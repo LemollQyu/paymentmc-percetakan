@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,8 +14,11 @@ import (
 	"paymentmc/cmd/app/storage"
 	"paymentmc/cmd/app/usecase"
 	"paymentmc/config"
+	"paymentmc/proto/paymentpb"
 	"syscall"
 	"time"
+
+	grpcServerPkg "paymentmc/infrastructure/grpc"
 
 	paymentGrpc "paymentmc/grpc/order"
 
@@ -22,6 +26,7 @@ import (
 	"paymentmc/routes"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -60,7 +65,7 @@ func main() {
 
 	router := gin.Default()
 	router.Static("/static", "./uploads")
-	routes.SetupRoutes(router, *paymentHandler)
+	routes.SetupRoutes(router, *paymentHandler, cfg.Secret.JWTSecret)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.App.Port,
@@ -73,6 +78,35 @@ func main() {
 			log.Logger.Fatalf("Gagal menjalankan server: %s\n", err)
 		}
 	}()
+
+	// ---- gRPC SERVER ----
+	lis, err := net.Listen("tcp", ":50054")
+	if err != nil {
+		log.Logger.Fatalf("Failed to listen gRPC: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	paymentGRPCServer := &grpcServerPkg.GRPCServer{
+		PaymentUsecase: *paymentUsecase,
+	}
+
+	paymentpb.RegisterPaymentServiceServer(
+		grpcServer,
+		paymentGRPCServer,
+	)
+
+	for service, info := range grpcServer.GetServiceInfo() {
+		log.Logger.Println("gRPC Service:", service)
+		for _, method := range info.Methods {
+			log.Logger.Println("  └─ Method:", method.Name)
+		}
+	}
+
+	log.Logger.Println("gRPC server running on port :50054")
+
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Logger.Fatalf("Failed to serve gRPC: %v", err)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

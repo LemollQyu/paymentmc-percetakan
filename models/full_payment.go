@@ -12,7 +12,8 @@ type FullPayment struct {
 
 	Code PaymentCode `json:"code"`
 
-	PaidAt    *time.Time `json:"paid_at"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ApprovedAt *time.Time `json:"approved_at"`
+	PaidAt     *time.Time `json:"paid_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }

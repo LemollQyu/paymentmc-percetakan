@@ -5,6 +5,7 @@ import (
 	"paymentmc/infrastructure/log"
 	"paymentmc/models"
 	"paymentmc/utils"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -146,5 +147,184 @@ func (h *PaymentHandler) Payment(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "success",
+	})
+}
+
+// handle bukti pembayaran
+func (h *PaymentHandler) ProofPayment(c *gin.Context) {
+	code := c.Param("code")
+
+	if code == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"message": "code tidak boleh kosong",
+		})
+		return
+	}
+
+	var param models.RequestBuktiPembayaran
+	if err := c.ShouldBind(&param); err != nil {
+		log.Logger.Error(err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "Invalid param",
+		})
+		return
+	}
+
+	proofFile, err := c.FormFile("bukti")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "Bukti pembayaran wajib diupload",
+		})
+		return
+	}
+
+	uploadAt, err := h.PaymentUsecase.ProofPayment(c.Request.Context(), code, proofFile, param.Note)
+	if err != nil {
+		switch err {
+		case utils.FileExtInvalid, utils.FileMaxSize, utils.FileRequired, utils.ErrPaymentCodeNotFound, utils.ErrStatusPaymentShouldPending, utils.ErrStatusOrderShouldWaitingPayment, utils.ErrPaymentPaid:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error_message": err.Error(),
+			})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error_message": err.Error(),
+			})
+
+		}
+		return
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data":    "Menunggu dikonfirmasi pihak percetakan",
+		"upload":  uploadAt,
+	})
+}
+
+// management payments
+func (h *PaymentHandler) GetPayments(c *gin.Context) {
+
+	status := c.Query("status")
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	data, err := h.PaymentUsecase.GetPayments(
+		c.Request.Context(),
+		status,
+		page,
+		limit,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error_message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data":    data,
+		"meta": gin.H{
+			"page":  page,
+			"limit": limit,
+		},
+	})
+}
+
+func (h *PaymentHandler) ApprovePayment(c *gin.Context) {
+	code := c.Param("code")
+	if code == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"message": "code tidak boleh kosong",
+		})
+		return
+	}
+
+	err := h.PaymentUsecase.ApprovePayment(c.Request.Context(), code)
+	if err != nil {
+		switch err {
+		case utils.ErrPaymentCodeNotFound, utils.ErrPaymentShouldSuccess, utils.OrderNotFound, utils.ErrOrderShouldPaid:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error_message": err.Error(),
+			})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error_message": err.Error(),
+			})
+
+		}
+		return
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+	})
+}
+
+func (h *PaymentHandler) RejectPayment(c *gin.Context) {
+	code := c.Param("code")
+	if code == "" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"message": "code tidak boleh kosong",
+		})
+		return
+	}
+
+	err := h.PaymentUsecase.RejectPayment(c.Request.Context(), code)
+	if err != nil {
+		switch err {
+		case utils.ErrPaymentCodeNotFound, utils.ErrPaymentShouldSuccess, utils.OrderNotFound, utils.ErrOrderShouldPaid:
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error_message": err.Error(),
+			})
+
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error_message": err.Error(),
+			})
+
+		}
+		return
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+	})
+}
+
+func (h *PaymentHandler) GetPaymentByOrderID(c *gin.Context) {
+	id := c.Param("orderID")
+	orderID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "invalid service id",
+		})
+		return
+	}
+
+	data, err := h.PaymentUsecase.GetPaymentByOrderID(c.Request.Context(), orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error_message": "Kesalahan internal system",
+		})
+		return
+	}
+
+	if data == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "payment tidak ada",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data":    data,
 	})
 }
