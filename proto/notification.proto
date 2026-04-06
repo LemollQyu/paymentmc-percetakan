@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package notification;
+
+option go_package = "proto/notificationpb;notificationpb";
+
+service NotificationService {
+    rpc InsertNotificationOrder (InsertNotificationOrderRequest) returns (InsertNotificationOrderResponse);
+
+    rpc GetNotificationsByUser (GetNotificationsByUserRequest) returns (GetNotificationsByUserResponse);
+}
+
+// Enum sesuai DB
+enum TypeNotification {
+    EMAIL    = 0;
+    PUSH     = 1;
+    SMS      = 2;
+    WHATSAPP = 3;
+}
+
+// Insert
+message InsertNotificationOrderRequest {
+    int64            user_id           = 1;
+    string           type              = 2;
+    TypeNotification type_notification = 3;
+    // data template
+    string           name              = 4;
+    string           order_code        = 5;
+    string           expired_at        = 6;
+    // email target
+    string           email             = 7;
+    string service = 8;
+    string amount = 9;
+    string payment_code = 10;
+}
+
+message InsertNotificationOrderResponse {
+    int64  id      = 1;
+    string message = 2;
+}
+
+// Get by user
+message GetNotificationsByUserRequest {
+    int64 user_id = 1;
+    int32 limit   = 2;
+    int32 offset  = 3;
+}
+
+message Notification {
+    int64            id                = 1;
+    int64            user_id           = 2;
+    string           type              = 3;
+    TypeNotification type_notification = 4;
+    string           subject           = 5;
+    string           body              = 6;
+    string           sent_at           = 7;
+    string           created_at        = 8;
+    
+}
+
+message GetNotificationsByUserResponse {
+    repeated Notification notifications = 1;
+}

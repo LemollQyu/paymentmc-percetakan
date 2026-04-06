@@ -6,4 +6,7 @@ const (
 	PaymentCodes       = "payment_codes"
 	PaymentProofs      = "payment_proofs"
 	ListWaitingPayment = "list_payment_waiting"
+	RejectedPayment    = "rejected_payment"
+	Refounds           = "refunds"
+	RefoundProofs      = "refund_proofs"
 )

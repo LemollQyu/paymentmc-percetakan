@@ -34,3 +34,9 @@ var (
 	FileRequired   = errors.New("file wajib diisi")
 	ErrDeleteFile  = errors.New("gagal menghapus file")
 )
+
+// error refunc
+var (
+	ErrRejectPaymentNotFound = errors.New("ID tidak ditemukan")
+	ErrDataRefundIsFound     = errors.New("data refund sudah ada")
+)

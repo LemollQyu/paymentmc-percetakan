@@ -328,3 +328,27 @@ func (h *PaymentHandler) GetPaymentByOrderID(c *gin.Context) {
 		"data":    data,
 	})
 }
+
+func (h *PaymentHandler) GetPaymentProof(c *gin.Context) {
+	id := c.Param("paymentID")
+	paymentID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "invalid service id",
+		})
+		return
+	}
+
+	data, err := h.PaymentUsecase.GetPaymentProofByID(c.Request.Context(), paymentID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error_message": "Kesalahan internal system",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"data":    data,
+	})
+}

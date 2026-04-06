@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-// request
 type ListWaitingPayment struct {
 	ID        int64 `json:"id"`
 	PaymentID int64 `json:"payment_id"`
@@ -18,4 +17,6 @@ type ListWaitingPayment struct {
 	CheckoutAt time.Time `json:"checkout_at"`
 	ExpiredAt  time.Time `json:"expired_at"`
 	CreatedAt  time.Time `json:"created_at"`
+
+	Payment Payment `json:"payment" gorm:"-"` // tambah ini
 }

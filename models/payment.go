@@ -13,17 +13,17 @@ type RequestPayment struct {
 }
 
 type Payment struct {
-	ID            int64       `json:"id"`
-	OrderID       int64       `json:"order_id"`
-	UserID        int64       `json:"user_id"`
-	Amount        float64     `json:"amount"`
-	PaymentMethod string      `json:"payment_method"`
-	Status        string      `json:"status"`
-	PaidAt        *time.Time  `json:"paid_at"`
-	ApprovedAt    *time.Time  `json:"approved_at"`
-	CreatedAt     time.Time   `json:"created_at"`
-	UpdatedAt     time.Time   `json:"updated_at"`
-	PaymentCodes  PaymentCode `gorm:"foreignKey:PaymentID" json:"payment_code"`
+	ID            int64         `json:"id"`
+	OrderID       int64         `json:"order_id"`
+	UserID        int64         `json:"user_id"`
+	Amount        float64       `json:"amount"`
+	PaymentMethod string        `json:"payment_method"`
+	Status        string        `json:"status"`
+	PaidAt        *time.Time    `json:"paid_at"`
+	ApprovedAt    *time.Time    `json:"approved_at"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+	PaymentCodes  []PaymentCode `gorm:"foreignKey:PaymentID" json:"payment_codes"` // slice
 }
 
 type ResponsePayment struct {
@@ -34,6 +34,7 @@ type ResponsePayment struct {
 	NumberPayment string    `json:"number_payment"`
 	CodeQris      string    `json:"code_qris"`
 	ExpiredAt     time.Time `json:"expired_at"`
+	Service       string    `json:"service"`
 }
 
 type RequestProofPayment struct {

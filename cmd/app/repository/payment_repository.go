@@ -57,7 +57,9 @@ func (r *PaymentRepository) GetPaymentByID(ctx context.Context, id int64) (*mode
 // get payment by orderid
 func (r *PaymentRepository) GetPaymentByOrderID(ctx context.Context, orderID int64) (*models.Payment, error) {
 	var payment models.Payment
+
 	err := r.Database.WithContext(ctx).
+		Preload("PaymentCodes").
 		Where("order_id = ?", orderID).
 		First(&payment).
 		Error

@@ -18,14 +18,6 @@ type Order struct {
 	OrderSpesifications []*OrderSpesification `json:"order_spesifications"`
 }
 
-type User struct {
-	ID        int64   `json:"id"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email"`
-	Phone     *string `json:"phone"`
-	AvatarUrl *string `json:"avatar_url"`
-}
-
 type OrderCode struct {
 	ID      int64  `json:"id"`
 	OrderID int64  `json:"order_id"`

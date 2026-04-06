@@ -21,6 +21,23 @@ func (h *PaymentHandler) GetListWaitingPayment(c *gin.Context) {
 	})
 }
 
+func (h *PaymentHandler) GetWaitingPayment(c *gin.Context) {
+	code := c.Param("code")
+
+	data, err := h.PaymentUsecase.GetWaitingPayment(c.Request.Context(), code)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error_message": "Kesalahan internal system",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Success",
+		"data":    data,
+	})
+}
+
 // GetMyPayment untuk user yang login: menampilkan data checkout (payment Pending, order Waiting_payment).
 // Data sama dengan list-waiting-payment, hanya milik user ini.
 func (h *PaymentHandler) GetMyPayment(c *gin.Context) {

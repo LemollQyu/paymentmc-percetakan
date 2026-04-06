@@ -16,6 +16,19 @@ func (s *PaymentService) InsertListWaitingPayment(ctx context.Context, param *mo
 	return id, nil
 }
 
+func (s *PaymentService) GetWaitingPayment(
+	ctx context.Context,
+	code string,
+) (*models.ListWaitingPayment, error) {
+	data, err := s.PaymentRepository.GetWaitingPayment(ctx, code)
+	if err != nil {
+		log.Logger.Error(" GetWaitingPayment")
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func (s *PaymentService) GetListWaitingPayment(
 	ctx context.Context,
 ) (*[]models.ListWaitingPayment, error) {

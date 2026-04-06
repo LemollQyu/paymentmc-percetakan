@@ -14,13 +14,16 @@ import (
 	"paymentmc/cmd/app/storage"
 	"paymentmc/cmd/app/usecase"
 	"paymentmc/config"
+	"paymentmc/middleware"
 	"paymentmc/proto/paymentpb"
 	"syscall"
 	"time"
 
 	grpcServerPkg "paymentmc/infrastructure/grpc"
 
-	paymentGrpc "paymentmc/grpc/order"
+	notificationGrpc "paymentmc/grpc/notification"
+	orderGrpc "paymentmc/grpc/order"
+	userGrpc "paymentmc/grpc/user"
 
 	"paymentmc/infrastructure/log"
 	"paymentmc/routes"
@@ -49,9 +52,11 @@ func main() {
 
 	paymentRepostory := repository.NewPaymentRepository(db)
 
-	orderGRPC := paymentGrpc.NewOrderClient(cfg.GRPC.OrderURL)
+	orderGRPC := orderGrpc.NewOrderClient(cfg.GRPC.OrderURL)
+	notificationGRPC := notificationGrpc.NewNotificationClient()
+	userGRPC := userGrpc.NewUserClient()
 
-	paymentService := service.NewPaymentService(*paymentRepostory, orderGRPC)
+	paymentService := service.NewPaymentService(*paymentRepostory, orderGRPC, notificationGRPC, userGRPC)
 	paymentStorage := storage.NewStorage(cfg.Storage.UploadBaseDir, cfg.App.Url)
 	paymentUsecase := usecase.NewPaymentUsecase(
 		*paymentService,
@@ -63,7 +68,10 @@ func main() {
 
 	paymentHandler := handler.NewPaymentHandler(*paymentUsecase)
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(middleware.CORS([]string{"http://localhost:3000", "http://localhost:3001"}))
+	router.Use(gin.Logger())
 	router.Static("/static", "./uploads")
 	routes.SetupRoutes(router, *paymentHandler, cfg.Secret.JWTSecret)
 

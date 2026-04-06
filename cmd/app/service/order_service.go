@@ -23,7 +23,7 @@ func (s *PaymentService) GetOrderByID(
 		Name:      res.User.Name,
 		Email:     res.User.Email,
 		Phone:     &res.User.Phone,
-		AvatarUrl: &res.User.AvatarUrl,
+		AvatarURL: &res.User.AvatarUrl,
 	}
 
 	orderCode := &models.OrderCode{
@@ -88,7 +88,7 @@ func (s *PaymentService) GetOrderByCode(
 		Name:      res.User.Name,
 		Email:     res.User.Email,
 		Phone:     &res.User.Phone,
-		AvatarUrl: &res.User.AvatarUrl,
+		AvatarURL: &res.User.AvatarUrl,
 	}
 
 	orderCode := &models.OrderCode{

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"mime/multipart"
 	"paymentmc/infrastructure/log"
 	"paymentmc/models"
@@ -120,6 +121,52 @@ func (uc *PaymentUsecase) Checkout(ctx context.Context, code string, param model
 		return nil, err
 	}
 
+	// kirim notifikasi order checkout
+	go func() {
+		notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// ambil data user untuk nama & email
+		resUser, err := uc.PaymentService.GetUser(notifCtx, resOrder.UserID)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+			return
+		}
+
+		notifParamUser := models.NotificationOrderRequest{
+			UserID:           resOrder.UserID,
+			Type:             "order_created",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        param.OrderCode,
+			ExpiredAt:        dataPaymentCode.ExpiredAt.Format("02 Jan 2006 15:04"),
+			Email:            resUser.Email,
+			Service:          resOrder.ServiceNameSnapshot,
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParamUser)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification checkout: ", err.Error())
+		}
+
+		notifParamAdmin := models.NotificationOrderRequest{
+			UserID:           resOrder.UserID,
+			Type:             "order_comes_in",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        param.OrderCode,
+			ExpiredAt:        dataPaymentCode.ExpiredAt.Format("02 Jan 2006 15:04"),
+			Email:            "nabilafotocopy09@gmail.com",
+			Service:          resOrder.ServiceNameSnapshot,
+			Amount:           utils.FormatRupiah(float64(resOrder.TotalPriceSnapshot)),
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParamAdmin)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification checkout: ", err.Error())
+		}
+	}()
+
 	return &models.ResponsePayment{
 		OrderID:       resOrder.ID,
 		Amount:        float64(resOrder.TotalPriceSnapshot),
@@ -128,59 +175,9 @@ func (uc *PaymentUsecase) Checkout(ctx context.Context, code string, param model
 		CodeQris:      dataPaymentMethod.UrlCode,
 		NumberPayment: dataPaymentMethod.NumberPayment,
 		UserID:        resOrder.UserID,
+		Service:       resOrder.ServiceNameSnapshot,
 	}, nil
 }
-
-// set expired order
-
-// func (uc *PaymentUsecase) BrokerExpiredPaymentAndOrder(ctx context.Context) (int64, error) {
-// 	// ambil data code payment
-// 	paymentIDs, total, err := uc.PaymentService.GetExpiredPendingPaymentCodes(ctx)
-// 	if err != nil {
-// 		log.Logger.Error("uc.PaymentService.GetExpiredPendingPaymentCodes")
-// 		return 0, err
-// 	}
-
-// 	if total == 0 {
-// 		return 0, errors.New("tidak ada payment yang expired")
-// 	}
-
-// 	// ambil data order id nya
-// 	orderIDs, err := uc.PaymentService.GetOrderIDsByPaymentIDs(ctx, paymentIDs)
-// 	if err != nil {
-// 		log.Logger.Error("uc.PaymentService.GetOrderIDsByPaymentIDs")
-// 		return 0, err
-// 	}
-
-// 	// set status order di id itu jadi Expired
-// 	_, totalExpiredOrder, err := uc.PaymentService.UpdateExpiredOrder(ctx, orderIDs)
-// 	if err != nil {
-// 		log.Logger.WithFields(logrus.Fields{
-// 			"ids":   orderIDs,
-// 			"error": err.Error(),
-// 		}).Error("uc.PaymentService.UpdateExpiredOrder")
-
-// 		return 0, err
-// 	}
-
-// 	if totalExpiredOrder == 0 {
-// 		return 0, errors.New("tidak ada order yang expired")
-// 	}
-
-// 	// set status payment di id payment itu jadi Expired
-
-// 	err = uc.PaymentService.UpdateExpiredPayment(ctx, paymentIDs)
-// 	if err != nil {
-// 		log.Logger.WithFields(logrus.Fields{
-// 			"ids":   paymentIDs,
-// 			"error": err.Error(),
-// 		}).Error("uc.PaymentService.UpdateExpiredPayment")
-
-// 		return 0, err
-// 	}
-
-// 	return total, nil
-// }
 
 // broker expired payment and order
 func (uc *PaymentUsecase) StartBrokerExpiredPaymentAndOrder(
@@ -188,7 +185,6 @@ func (uc *PaymentUsecase) StartBrokerExpiredPaymentAndOrder(
 ) {
 
 	log.Logger.Info("worker expired payment-order")
-	// Jalankan setiap 5 menit
 	ticker := time.NewTicker(5 * time.Minute)
 
 	go func() {
@@ -219,7 +215,23 @@ func (uc *PaymentUsecase) StartBrokerExpiredPaymentAndOrder(
 					continue
 				}
 
-				// set status order di id itu jadi Expired
+				// ambil data order sebelum di-update (untuk notifikasi)
+				var orders []*models.Order
+				for _, orderID := range orderIDs {
+					dataOrder, err := uc.PaymentService.GetOrderByID(ctx, orderID)
+					if err != nil {
+						log.Logger.WithFields(logrus.Fields{
+							"order_id": orderID,
+							"error":    err.Error(),
+						}).Error("uc.PaymentService.GetOrderByID")
+						continue
+					}
+					if dataOrder != nil {
+						orders = append(orders, dataOrder)
+					}
+				}
+
+				// set status order jadi Expired
 				_, totalExpiredOrder, err := uc.PaymentService.UpdateExpiredOrder(ctx, orderIDs)
 				if err != nil {
 					log.Logger.WithFields(logrus.Fields{
@@ -234,7 +246,7 @@ func (uc *PaymentUsecase) StartBrokerExpiredPaymentAndOrder(
 					continue
 				}
 
-				// set status payment di id payment itu jadi Expired
+				// set status payment jadi Expired
 				err = uc.PaymentService.UpdateExpiredPayment(ctx, paymentIDs)
 				if err != nil {
 					log.Logger.WithFields(logrus.Fields{
@@ -242,6 +254,35 @@ func (uc *PaymentUsecase) StartBrokerExpiredPaymentAndOrder(
 						"error": err.Error(),
 					}).Error("uc.PaymentService.UpdateExpiredPayment")
 					continue
+				}
+
+				// kirim notifikasi per order
+				for _, dataOrder := range orders {
+					go func(dataOrder *models.Order) {
+						notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+						defer cancel()
+
+						resUser, err := uc.PaymentService.GetUser(notifCtx, dataOrder.UserID)
+						if err != nil {
+							log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+							return
+						}
+
+						notifParam := models.NotificationOrderRequest{
+							UserID:           dataOrder.UserID,
+							Type:             "order_expired",
+							TypeNotification: "email",
+							Name:             resUser.Name,
+							OrderCode:        dataOrder.OrderCode.Code,
+							Email:            resUser.Email,
+							Service:          dataOrder.ServiceNameSnapshot,
+						}
+
+						err = uc.PaymentService.Notification(notifCtx, notifParam)
+						if err != nil {
+							log.Logger.Error("uc.PaymentService.Notification order_expired: ", err.Error())
+						}
+					}(dataOrder)
 				}
 
 				log.Logger.WithFields(logrus.Fields{
@@ -320,6 +361,34 @@ func (uc *PaymentUsecase) CancelledPaymentAndOrder(ctx context.Context, code str
 
 		return err
 	}
+
+	// kirim notifikasi order di cancelled
+	go func() {
+		notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// ambil data user untuk nama & email
+		resUser, err := uc.PaymentService.GetUser(notifCtx, dataOrder.UserID)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+			return
+		}
+
+		notifParam := models.NotificationOrderRequest{
+			UserID:           dataOrder.UserID,
+			Type:             "order_cancelled",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        dataOrder.OrderCode.Code,
+			Email:            resUser.Email,
+			Service:          dataOrder.ServiceNameSnapshot,
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParam)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification checkout: ", err.Error())
+		}
+	}()
 
 	return nil
 }
@@ -424,6 +493,36 @@ func (uc *PaymentUsecase) ProofPayment(ctx context.Context, code string, filePro
 		return nil, err
 	}
 
+	// kirim notifikasi pembayaran dikonfirmasi
+	go func() {
+		notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		resUser, err := uc.PaymentService.GetUser(notifCtx, dataOrder.UserID)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+			return
+		}
+
+		amount := fmt.Sprintf("Rp %s", utils.FormatRupiah(dataPaymentCode.Payment.Amount))
+
+		notifParam := models.NotificationOrderRequest{
+			UserID:           dataOrder.UserID,
+			Type:             "order_payment_success",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        dataOrder.OrderCode.Code,
+			Email:            resUser.Email,
+			Service:          dataOrder.ServiceNameSnapshot,
+			Amount:           amount,
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParam)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification payment confirmed: ", err.Error())
+		}
+	}()
+
 	return uploadAt, nil
 
 }
@@ -523,6 +622,34 @@ func (uc *PaymentUsecase) ApprovePayment(ctx context.Context, codePayment string
 		return err
 	}
 
+	// kirim notidikasi
+	go func() {
+		notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// ambil data user untuk nama & email
+		resUser, err := uc.PaymentService.GetUser(notifCtx, dataOrder.UserID)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+			return
+		}
+
+		notifParam := models.NotificationOrderRequest{
+			UserID:           dataOrder.UserID,
+			Type:             "order_confirmed",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        dataOrder.OrderCode.Code,
+			Email:            resUser.Email,
+			Service:          dataOrder.ServiceNameSnapshot,
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParam)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification checkout: ", err.Error())
+		}
+	}()
+
 	return nil
 }
 
@@ -589,6 +716,34 @@ func (uc *PaymentUsecase) RejectPayment(ctx context.Context, codePayment string)
 
 		return err
 	}
+
+	// kirim notifikasi order di cancelled
+	go func() {
+		notifCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// ambil data user untuk nama & email
+		resUser, err := uc.PaymentService.GetUser(notifCtx, dataOrder.UserID)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.GetUser for notification: ", err.Error())
+			return
+		}
+
+		notifParam := models.NotificationOrderRequest{
+			UserID:           dataOrder.UserID,
+			Type:             "order_cancelled",
+			TypeNotification: "email",
+			Name:             resUser.Name,
+			OrderCode:        dataOrder.OrderCode.Code,
+			Email:            resUser.Email,
+			Service:          dataOrder.ServiceNameSnapshot,
+		}
+
+		err = uc.PaymentService.Notification(notifCtx, notifParam)
+		if err != nil {
+			log.Logger.Error("uc.PaymentService.Notification checkout: ", err.Error())
+		}
+	}()
 
 	return nil
 }

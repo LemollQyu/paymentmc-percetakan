@@ -5,6 +5,15 @@ import (
 	"paymentmc/models"
 )
 
+func (uc *PaymentUsecase) GetWaitingPayment(ctx context.Context, code string) (*models.ListWaitingPayment, error) {
+	data, err := uc.PaymentService.GetWaitingPayment(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
 func (uc *PaymentUsecase) GetListWaitingPayment(ctx context.Context) (*[]models.ListWaitingPayment, error) {
 	data, err := uc.PaymentService.GetListWaitingPayment(ctx)
 	if err != nil {
