@@ -6,6 +6,6 @@ import (
 )
 
 func (s *Storage) UploadProofPayment(ctx context.Context, file *multipart.FileHeader) (string, error) {
-	const maxIconSize = 3000 * 1024
-	return s.UploadFile(ctx, file, "bukti", []string{".jpeg", ".png", ".webp", ".jpg"}, maxIconSize)
+	const maxIconSize = 5000 * 1024
+	return s.UploadFile(ctx, file, "bukti", []string{".jpeg", ".png", ".webp", ".jpg", ".heic"}, maxIconSize)
 }

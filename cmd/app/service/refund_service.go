@@ -19,9 +19,12 @@ func (s *PaymentService) CreateSubmitRefund(ctx context.Context, param models.Re
 func (s *PaymentService) GetMyRefund(
 	ctx context.Context,
 	userID int64,
+	status string,
+	page int,
+	limit int,
 ) (*[]models.RejectedPayment, error) {
 
-	data, err := s.PaymentRepository.GetMyRefund(ctx, userID)
+	data, err := s.PaymentRepository.GetMyRefund(ctx, userID, status, page, limit)
 	if err != nil {
 		log.Logger.Error("GetMyRefund")
 		return nil, err
@@ -32,9 +35,12 @@ func (s *PaymentService) GetMyRefund(
 
 func (s *PaymentService) GetAllRefunds(
 	ctx context.Context,
+	status string,
+	page int,
+	limit int,
 ) (*[]models.RejectedPayment, error) {
 
-	data, err := s.PaymentRepository.GetAllRefund(ctx)
+	data, err := s.PaymentRepository.GetAllRefund(ctx, status, page, limit)
 	if err != nil {
 		log.Logger.Error("GetAllRefund")
 		return nil, err

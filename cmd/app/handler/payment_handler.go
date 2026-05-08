@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"paymentmc/infrastructure/log"
 	"paymentmc/models"
 	"paymentmc/utils"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -178,7 +180,10 @@ func (h *PaymentHandler) ProofPayment(c *gin.Context) {
 		return
 	}
 
-	uploadAt, err := h.PaymentUsecase.ProofPayment(c.Request.Context(), code, proofFile, param.Note)
+	// sesudah
+	uploadCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	uploadAt, err := h.PaymentUsecase.ProofPayment(uploadCtx, code, proofFile, param.Note)
 	if err != nil {
 		switch err {
 		case utils.FileExtInvalid, utils.FileMaxSize, utils.FileRequired, utils.ErrPaymentCodeNotFound, utils.ErrStatusPaymentShouldPending, utils.ErrStatusOrderShouldWaitingPayment, utils.ErrPaymentPaid:

@@ -74,13 +74,13 @@ func (s *Storage) UploadFile(
 }
 
 func (s *Storage) UploadIconPaymentMethod(ctx context.Context, file *multipart.FileHeader) (string, error) {
-	const maxIconSize = 500 * 1024
-	return s.UploadFile(ctx, file, "icon-method", []string{".svg", ".png", ".webp"}, maxIconSize)
+	const maxIconSize = 5000 * 1024
+	return s.UploadFile(ctx, file, "icon-method", []string{".svg", ".png", ".webp", ".heic"}, maxIconSize)
 }
 
 func (s *Storage) UploadCodeQris(ctx context.Context, file *multipart.FileHeader) (string, error) {
-	const maxIconSize = 500 * 1024
-	return s.UploadFile(ctx, file, "code-qris", []string{".jpg", ".png", ".webp", ".jpeg"}, maxIconSize)
+	const maxIconSize = 5000 * 1024
+	return s.UploadFile(ctx, file, "code-qris", []string{".jpg", ".png", ".webp", ".jpeg", ".heic"}, maxIconSize)
 }
 
 func (s *Storage) DeleteFile(

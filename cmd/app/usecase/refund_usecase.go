@@ -73,16 +73,16 @@ func (uc *PaymentUsecase) SubmitRefund(ctx context.Context, param models.Request
 	return nil
 }
 
-func (uc *PaymentUsecase) GetMyRefund(ctx context.Context, userID int64) (*[]models.RejectedPayment, error) {
-	data, err := uc.PaymentService.GetMyRefund(ctx, userID)
+func (uc *PaymentUsecase) GetMyRefund(ctx context.Context, userID int64, status string, page int, limit int) (*[]models.RejectedPayment, error) {
+	data, err := uc.PaymentService.GetMyRefund(ctx, userID, status, page, limit)
 	if err != nil {
 		return nil, err
 	}
 	return data, nil
 }
 
-func (uc *PaymentUsecase) GetAllRefunds(ctx context.Context) (*[]models.RejectedPayment, error) {
-	data, err := uc.PaymentService.GetAllRefunds(ctx)
+func (uc *PaymentUsecase) GetAllRefunds(ctx context.Context, status string, page int, limit int) (*[]models.RejectedPayment, error) {
+	data, err := uc.PaymentService.GetAllRefunds(ctx, status, page, limit)
 	if err != nil {
 		return nil, err
 	}

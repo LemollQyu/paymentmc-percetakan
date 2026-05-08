@@ -82,7 +82,6 @@ func (h *PaymentHandler) SubmitRefund(c *gin.Context) {
 	})
 }
 
-// my refund
 func (h *PaymentHandler) GetMyRefund(c *gin.Context) {
 	userIDAny, exists := c.Get("user_id")
 	if !exists {
@@ -100,7 +99,12 @@ func (h *PaymentHandler) GetMyRefund(c *gin.Context) {
 		return
 	}
 
-	data, err := h.PaymentUsecase.GetMyRefund(c.Request.Context(), userID)
+	status := c.Query("status")
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	data, err := h.PaymentUsecase.GetMyRefund(c.Request.Context(), userID, status, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error_message": "Kesalahan internal system",
@@ -111,13 +115,20 @@ func (h *PaymentHandler) GetMyRefund(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Success",
 		"data":    data,
+		"meta": gin.H{
+			"page":  page,
+			"limit": limit,
+		},
 	})
 }
 
 // all nrefund
 func (h *PaymentHandler) GetAllRefunds(c *gin.Context) {
+	status := c.Query("status")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
-	data, err := h.PaymentUsecase.GetAllRefunds(c.Request.Context())
+	data, err := h.PaymentUsecase.GetAllRefunds(c.Request.Context(), status, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error_message": "Kesalahan internal system",
@@ -128,6 +139,10 @@ func (h *PaymentHandler) GetAllRefunds(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Success",
 		"data":    data,
+		"meta": gin.H{
+			"page":  page,
+			"limit": limit,
+		},
 	})
 }
 

@@ -39,16 +39,34 @@ func (r *PaymentRepository) CreateSubmitRefund(
 func (r *PaymentRepository) GetMyRefund(
 	ctx context.Context,
 	userID int64,
+	status string,
+	page int,
+	limit int,
 ) (*[]models.RejectedPayment, error) {
 
 	var refunds []models.RejectedPayment
 
-	err := r.Database.WithContext(ctx).
+	offset := (page - 1) * limit
+
+	query := r.Database.WithContext(ctx).
 		Model(&models.RejectedPayment{}).
-		Where("user_id = ?", userID).
-		Preload("Refunds").
+		Where("user_id = ?", userID)
+
+	if status != "" {
+		query = query.Where("EXISTS (SELECT 1 FROM refunds WHERE refunds.rejected_id = rejected_payment.id AND refunds.status = ?)", status)
+	}
+
+	err := query.
+		Preload("Refunds", func(db *gorm.DB) *gorm.DB {
+			if status != "" {
+				return db.Where("status = ?", status)
+			}
+			return db
+		}).
 		Preload("Refunds.Proofs").
 		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
 		Find(&refunds).Error
 
 	if err != nil {
@@ -60,15 +78,33 @@ func (r *PaymentRepository) GetMyRefund(
 
 func (r *PaymentRepository) GetAllRefund(
 	ctx context.Context,
+	status string,
+	page int,
+	limit int,
 ) (*[]models.RejectedPayment, error) {
 
 	var refunds []models.RejectedPayment
 
-	err := r.Database.WithContext(ctx).
-		Model(&models.RejectedPayment{}).
-		Preload("Refunds").
+	offset := (page - 1) * limit
+
+	query := r.Database.WithContext(ctx).
+		Model(&models.RejectedPayment{})
+
+	if status != "" {
+		query = query.Where("EXISTS (SELECT 1 FROM refunds WHERE refunds.rejected_id = rejected_payment.id AND refunds.status = ?)", status)
+	}
+
+	err := query.
+		Preload("Refunds", func(db *gorm.DB) *gorm.DB {
+			if status != "" {
+				return db.Where("status = ?", status)
+			}
+			return db
+		}).
 		Preload("Refunds.Proofs").
 		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
 		Find(&refunds).Error
 
 	if err != nil {
