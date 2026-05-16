@@ -70,7 +70,7 @@ func main() {
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(middleware.CORS([]string{"http://localhost:3000", "https://fe-percetakan.vercel.app", "https://sphere-regarded-july-personally.trycloudflare.com"}))
+	router.Use(middleware.CORS([]string{"http://localhost:3000", "https://fe-percetakan.vercel.app", "https://organizer-temperatures-cfr-phantom.trycloudflare.com"}))
 	router.Use(gin.Logger())
 	router.Static("/static", "./uploads")
 	routes.SetupRoutes(router, *paymentHandler, cfg.Secret.JWTSecret)
